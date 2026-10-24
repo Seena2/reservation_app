@@ -3,14 +3,17 @@ import express  from "express";
 import mongoose from 'mongoose';
 import cors from 'cors';
 import path from 'path';
-import rootRoute from './routes/root.route.js';
-import { errorHandler } from "./middlewares/errorHandler.js";
 import cookieParser from "cookie-parser";
+import { errorHandler } from "./middlewares/errorHandler.js";
 import { corsOptions } from "./config/corsOptions.js";
-import connectToDB from './config/db.js';
-import {logger, logEvents} from './middlewares/logger.js'
+import { logger, logEvents } from "./middlewares/logger.js";
+import rootRoute from "./routes/root.route.js";
+import userRoutes from "./routes/user.route.js";
+import employeeRoutes from "./routes/employee.route.js";
+import connectToDB from "./config/db.js";
 
-import dns from "node:dns/promises"; 
+// allow dns request, for mongo atlas
+import dns from "node:dns/promises";
 dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
 console.log(process.env.NODE_ENV);
@@ -26,20 +29,20 @@ const MONGODB_URI = process.env.ATLAS_URI;
 app.use(express.json()); //parse json data
 // specify the static files directory by listening request on root ('/')
 const __dirname = import.meta.dirname;
-app.use('/', express.static(path.join(__dirname,'public')))
+app.use("/", express.static(path.join(__dirname, "public")));
 // or shortcut to specify static folder, whith out explictly resolving path
-app.use(express.static('public')); 
+app.use(express.static("public"));
 // custom middleware
 app.use(logger);
-app.use( errorHandler);
+app.use(errorHandler);
 // Third party middlewares
-app.use(cookieParser())
+app.use(cookieParser());
 app.use(cors(corsOptions));
 
-
 // ROUTES: API ENDPOINTS
-app.use('/', rootRoute);
-// app.use('/users', userRoutes);
+app.use("/api/", rootRoute);
+app.use("/api/users", userRoutes);
+app.use("/api/employees", employeeRoutes);
 
 // catch all 404, page
 app.all('/*splat', (req,res)=>{

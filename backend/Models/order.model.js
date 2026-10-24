@@ -4,9 +4,9 @@ import AutoIncrementFactory from 'mongoose-sequence';
 const AutoIncrement = AutoIncrementFactory(mongoose);
 
 // Sub-schema for items inside an order
-const orderItemSchema = new Schema({
+const orderItemSchema = new mongoose.Schema({
   product: {
-    type: Schema.Types.ObjectId,
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'Product',
     required: true
   },
@@ -17,11 +17,12 @@ const orderItemSchema = new Schema({
 
 
 // the main Order schema
-const orderSchema = new Schema({
-  user: {
-    type: Schema.Types.ObjectId,
+const orderSchema = new mongoose.Schema({
+  customer: {
+    type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: true,
+    index: true // Fast lookup for all orders by a specific user
   },
   orderItems: [orderItemSchema], // Array of multiple items
   totalAmount: {

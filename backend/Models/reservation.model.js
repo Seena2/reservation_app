@@ -5,7 +5,7 @@ import AutoIncrementFactory from 'mongoose-sequence';
 const AutoIncrement = AutoIncrementFactory(mongoose);
 
 const reservationSchema = new mongoose.Schema({
-    user:{
+    customer:{
         type:mongoose.Schema.Types.ObjectId, 
         required: [true,"Provide user name"],
         ref:'User', //refers user schema

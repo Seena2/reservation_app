@@ -1,14 +1,21 @@
 import mongoose from "mongoose";
-import AutoIncrementFactory from 'mongoose-sequence';
-// Initialize the auto-increment plugin with your mongoose instance
-const AutoIncrement = AutoIncrementFactory(mongoose);
+import Counter from "./counter.model.js";
 
+// This file defines the Employee schema and uses a Mongoose "pre-save" hook to automatically increment and
+//  format the sequential ID before saving a new employee.
 const employeeSchema = new mongoose.Schema({
+    // Friendly sequential ID (e.g., EMP-0001)
+    employeeId: {
+      type: String,
+      unique: true,
+      index: true // Fast lookup for all orders by a specific user
+    },
+    // References the separate User collection
     user:{
         type:mongoose.Schema.Types.ObjectId, 
-        required: [true,"Provide user name"],
+        required: [true,"Employee must be linked to a User accounts."],
         ref:'User', //refers user schema
-        index: true // Fast lookup for all orders by a specific user
+        unique: true,  
     },
     firstName: {
         type: String,
@@ -32,7 +39,7 @@ const employeeSchema = new mongoose.Schema({
         type: Date,
         required:[true, "Provide your date of birth"]
     },
-  email: {
+    email: {
     type: String,
     required: [true, 'Email is required'],
     unique: true,
@@ -40,16 +47,22 @@ const employeeSchema = new mongoose.Schema({
     trim: true,
     match: [/^\S+@\S+\.\S+$/, 'Please use a valid email address']
   },
-  phone: {
+  phone: [{
     type: String,
     trim: true
+  }],
+   address: {
+    street: String,
+    city: String,
+    country: String,
+    zipCode: String
   },
   department: {
     type: String,
     required: true,
     enum: ['IT', 'Human Resources', 'Sales', 'Marketing', 'Finance']
   },
-  role: {
+  position: {
     type: String,
     required: true
   },
@@ -62,29 +75,43 @@ const employeeSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
-  isActive: {
-    type: Boolean,
-    default: true
+  status: {
+    type: String,
+      enum: ['Active', 'On Leave', 'Terminated'],
+      default: 'Active',
   },
-  address: {
-    street: String,
-    city: String,
-    country: String,
-    zipCode: String
-  },
-  manager: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Employee' // Self-reference for hierarchy
-  }
+    // Self-referencing field to link an Employee to their Manager (who is also an Employee)
+    manager: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Employee',
+      default: null,
+    },
 },{
     timestamps: true //CreatedAt & UpdatedAt
 });
-// Apply the seuence plugin to your schema
-employeeSchema.plugin(AutoIncrement, { 
-  inc_field: 'employeeId',   // The name of the field you want to auto-increment
-  id:'employeeNumber',
-  start_seq: 1        // Optional: Start order numbers at 1000 instead of 1
+// Middleware: Pre-save hook to generate sequential employeeId
+employeeSchema.pre('save', async function (next) {
+  // Only generate a new ID if it's a new document
+  if (this.isNew) {
+    try {
+      const counter = await Counter.findOneAndUpdate(
+        { id: 'employeeId' },
+        { $inc: { seq: 1 } },
+        { new: true, upsert: true }
+      );
+
+      // Formats number to 4 digits padding with zeros (e.g., 1 -> '0001')
+      const paddedSeq = String(counter.seq).padStart(4, '0');
+      this.employeeId = `EMP-${paddedSeq}`;
+      
+      next();
+    } catch (error) {
+      next(error);
+    }
+  } else {
+    next();
+  }
 });
-// use the schema model to create the collection
+
 const Employee = mongoose.model('Employee', employeeSchema)
 export default Employee;
