@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 const customerSchema = new mongoose.Schema({
-    customer:{
+    userId:{
         type:mongoose.Schema.Types.ObjectId, 
         required: [true,"Provide user name"],
         ref:'User', //refers user schema
@@ -28,24 +28,32 @@ const customerSchema = new mongoose.Schema({
         type: Date,
         required:[true, "Provide your date of birth"]
     },
-  
+    email: {
+        type: String,
+        required: [true, 'Email is required'],
+        unique: true,
+        lowercase: true,
+        trim: true,
+         match: [/^\S+@\S+\.\S+$/, 'Please use a valid email address'],
+        index: true
+  },
   phone: {
-    type: String,
+    type: [String],
     trim: true
   },
- status: {
-    type: String,
-    enum: ['active', 'inactive', 'suspended'],
-    default: 'active'
-  },
- addresses: [{
+ address: {
     street: String,
     city: String,
     state: String,
     postalCode: String,
     country: String,
     isDefault: { type: Boolean, default: false }
-  }]
+  },
+   status: {
+    type: String,
+    enum: ['active', 'inactive', 'suspended'],
+    default: 'active'
+  },
 },{
     timestamps: true //CreatedAt & UpdatedAt
 })

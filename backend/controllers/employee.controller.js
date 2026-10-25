@@ -366,10 +366,9 @@ const updateEmployee = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: `Employee profile for ${existingEmployee.firstName} ${existingEmployee.lastName} updated successfully.`,
-      data: updatedEmployee,
+      data: existingEmployee,
     });
   } catch (error) {
-    console.log(error);
     // Check if the transaction is still active/can be aborted
     if (session.inTransaction()) {
       await session.abortTransaction();
@@ -419,19 +418,20 @@ const deleteEmployee = async (req, res) => {
     );
 
     // find and delete user
-    await Employee.findByIdAndDelete(id).session(session);
+    const deletedEmployee =
+      await Employee.findByIdAndDelete(id).session(session);
     await session.commitTransaction();
     session.endSession();
 
     // Construct a safe display name using the original pre-deleted object fields
     const displayName =
-      [employeeToDelete.firstName, employeeToDelete.lastName]
+      [deletedEmployee.firstName, deletedEmployee.lastName]
         .filter(Boolean)
         .join(" ") || "Employee";
 
     res.status(200).json({
       success: true,
-      message: `Employee profile for "${displayName}" (${employeeToDelete.employeeId || id}) removed successfully. Direct reports have been re-assigned up the chain.`,
+      message: `Employee profile for "${displayName}" (${deletedEmployee.employeeId || id}) removed successfully. Direct reports have been re-assigned up the chain.`,
     });
   } catch (error) {
     await session.abortTransaction();
