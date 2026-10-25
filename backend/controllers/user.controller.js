@@ -10,67 +10,26 @@ import bcrypt from "bcrypt";
 // @access private
 const CreateNewUser = async (req, res) => {
   const { username, email, password, roles, status } = req.body;
-
   try {
     // Check if user already exists
-    const existingUser = await User.findOne({ email }).lean().exec();
+    const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(409).json({ message: "User already exists" });
-    }
-    // Validate mandatory fields
-    if (
-      !username ||
-      typeof username !== "string" ||
-      username.trim().length < 3
-    ) {
-      return res.status(400).json({
-        message: "Username is required and must be at least 3 characters long.",
-      });
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email || !emailRegex.test(email)) {
       return res
-        .status(400)
-        .json({ message: "A valid email address is required." });
+        .status(409)
+        .json({ message: "User with this email already exists" });
     }
-
-    if (!password || typeof password !== "string" || password.length < 6) {
-      return res.status(400).json({
-        message: "Password is required and must be at least 6 characters long.",
-      });
-    }
-    // Validat optional fields
-    if (roles !== undefined && (!Array.isArray(roles) || roles.length === 0)) {
-      return res.status(400).json({ message: "Add at least one role." });
-    }
-
-    if (status !== undefined && typeof status !== "boolean") {
-      return res
-        .status(400)
-        .json({ message: "status must be a boolean value." });
-    }
-    // hash the password using bcrypt
-    const hashedPassword = await bcrypt.hash(password, 12);
-    // Construct and save the new user document
-    const newUser = new User({
-      username: username.trim(),
-      email: email.toLowerCase().trim(),
-      password: hashedPassword,
-      roles: roles || ["Customer"], // Default fallback if no role is provided
-      status: status !== undefined ? status : true, // Default to true if not provided
-    });
+    //  Note, password hashing is done in the user model
+    const newUser = new User(req.body);
     const savedUser = await newUser.save();
-
-    // Convert to plain object and explicitly strip the password field
-    const userResponse = savedUser.toObject();
-    delete userResponse.password;
-
     if (!savedUser) {
       return res
         .status(400)
         .json({ success: false, message: "failed creating user" });
     }
+
+    // Convert to plain object and explicitly strip the password field to return as response
+    const userResponse = savedUser.toObject();
+    delete userResponse.password;
 
     return res.status(201).json({
       success: true,
@@ -125,12 +84,7 @@ const getUser = async (req, res) => {
   const { id } = req.params;
 
   try {
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid user Id" });
-    }
-    const user = await User.findById(id);
+    const user = await User.findById(id).select("-password");
     if (!user) {
       return res
         .status(404)
@@ -146,8 +100,6 @@ const getUser = async (req, res) => {
   }
 };
 
-
-
 // @desc Updates an existing user account (All or Partial fields)
 // @route PATCH /api/users/:id
 // @access private
@@ -155,75 +107,31 @@ const updateUser = async (req, res) => {
   const { id } = req.params;
   const { username, email, password, roles, status } = req.body;
 
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(400).json({ success: false, message: "Invalid user Id" });
-  }
-
   try {
-    const user = await User.findById(id);
+    const user = await User.findById(id).select("-password");
     if (!user) {
       return res
         .status(400)
-        .json({ success: false, message: "user not found" });
+        .json({ success: false, message: "User not found" });
     }
-    // Validate and dynamically assign provided fields (Partial Updates)
-    if (username !== undefined) {
-      if (typeof username !== "string" || username.trim().length < 3) {
-        return res
-          .status(400)
-          .json({ message: "Username must be at least 3 characters long." });
-      }
-      user.username = username.trim();
-    }
-
-    if (email !== undefined) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        return res
-          .status(400)
-          .json({ message: "Please provide a valid email address." });
-      }
-      user.email = email.toLowerCase().trim();
-    }
-
-    if (password !== undefined) {
-      if (typeof password !== "string" || password.length < 6) {
-        return res
-          .status(400)
-          .json({ message: "Password must be at least 6 characters long." });
-      }
-      // Assign plain text; Mongoose pre-save middleware should handle hashing
-      // hash the password in the User Schema model
-      user.password = password;
-    }
-
-    if (roles !== undefined) {
-      if (!Array.isArray(roles) || roles.length === 0) {
-        return res.status(400).json({ message: "Add at least one role." });
-      }
-      user.roles = roles;
-    }
-
-    if (status !== undefined) {
-      if (typeof status !== "boolean") {
-        return res
-          .status(400)
-          .json({ message: "status must be a boolean value." });
-      }
-      user.status = status;
+    // Dynamically assign incoming validated fields to the Mongoose document
+    // Because 'stripUnknown: true' is in our Joi middleware, req.body is guaranteed clean
+    Object.assign(user, req.body);
+    // CRITICAL: Explicitly tell Mongoose that the array was modified
+    if (roles) {
+      user.markModified("roles");
     }
     //  Save the document (triggers pre-save validation/hooks)
     const updatedUser = await user.save();
-
-    // Convert to object and explicitly remove the password field before responding
-    const userResponse = updatedUser.toObject();
-    delete userResponse.password;
-
     if (!updatedUser) {
       return res
         .status(400)
         .json({ success: false, message: "failed to update user" });
     }
+
+    // Convert to object and explicitly remove the password field before responding
+    const userResponse = updatedUser.toObject();
+    delete userResponse.password;
 
     return res.status(200).json({
       success: true,
@@ -244,9 +152,7 @@ const updateUser = async (req, res) => {
 // @access private
 const deleteUser = async (req, res) => {
   const { id } = req.params;
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(400).json({ success: false, message: "Invalid user Id" });
-  }
+
   try {
     const existinguser = await User.findById(id);
     if (!existinguser) {

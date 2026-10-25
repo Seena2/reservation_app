@@ -6,6 +6,7 @@ const userSchema = new mongoose.Schema(
     username: {
       type: String,
       required: [true, "Provide user name"],
+      unique: true
     },
     
     email: {
@@ -27,12 +28,13 @@ const userSchema = new mongoose.Schema(
       {
         // User can have multiple roles
         type: String,
-        enum: ['Customer','Employee', 'Admin', 'HR'],
-        default: "Customer",
+        enum: ['customer','employee', 'admin', 'hr'],
+        default: "customer",
       },
     ],
     status: {
-      type: Boolean,
+      type: String,
+      enum: ['active', 'inactive', 'suspended', 'pending'],
       default: true,
     },
   },
@@ -40,19 +42,24 @@ const userSchema = new mongoose.Schema(
     timestamps: true, //CreatedAt & UpdatedAt
   },
 );
-
-// Hash password before saving
+// Automatically hash password before saving
 userSchema.pre('save', async function () {
-  // If the password wasn't modified, just exit the function early
-  if (!this.isModified('password')) return;
+  // Only hash the password if it has been modified (or is new)
+  if (!this.isModified('password')) return ;
+
   try {
     const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
-  } catch (err) {
-   // Throwing an error inside an async pre-save hook automatically aborts the save
+  } catch (error) {
+    // Throwing an error inside an async pre-save hook automatically aborts the save
     throw err; 
   }
 });
+
+// Helper method to compare passwords during login
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password);
+};
 // use the schema model to create the collection
 const User = mongoose.model('User', userSchema)
 export default User;

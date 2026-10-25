@@ -11,6 +11,7 @@ import rootRoute from "./routes/root.route.js";
 import userRoutes from "./routes/user.route.js";
 import employeeRoutes from "./routes/employee.route.js";
 import customerRoutes from "./routes/customer.route.js";
+import inventoryRoutes from "./routes/inventory.route.js";
 import connectToDB from "./config/db.js";
 
 // allow dns request, for mongo atlas
@@ -41,6 +42,7 @@ app.use("/api/", rootRoute);
 app.use("/api/users", userRoutes);
 app.use("/api/employees", employeeRoutes);
 app.use("/api/customers", customerRoutes);
+app.use("/api/customers", inventoryRoutes);
 
 
 // CATCH ALL 404 WILDCARD (Runs only if no route above matches)
