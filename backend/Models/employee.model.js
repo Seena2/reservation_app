@@ -11,7 +11,7 @@ const employeeSchema = new mongoose.Schema({
       index: true // Fast lookup for all orders by a specific user
     },
     // References the separate User collection
-    user:{
+    userId:{
         type:mongoose.Schema.Types.ObjectId, 
         required: [true,"Employee must be linked to a User accounts."],
         ref:'User', //refers user schema
@@ -90,10 +90,9 @@ const employeeSchema = new mongoose.Schema({
     timestamps: true //CreatedAt & UpdatedAt
 });
 // Middleware: Pre-save hook to generate sequential employeeId
-employeeSchema.pre('save', async function (next) {
+employeeSchema.pre('save', async function () {
   // Only generate a new ID if it's a new document
   if (this.isNew) {
-    try {
       const counter = await Counter.findOneAndUpdate(
         { id: 'employeeId' },
         { $inc: { seq: 1 } },
@@ -103,14 +102,7 @@ employeeSchema.pre('save', async function (next) {
       // Formats number to 4 digits padding with zeros (e.g., 1 -> '0001')
       const paddedSeq = String(counter.seq).padStart(4, '0');
       this.employeeId = `EMP-${paddedSeq}`;
-      
-      next();
-    } catch (error) {
-      next(error);
-    }
-  } else {
-    next();
-  }
+    } 
 });
 
 const Employee = mongoose.model('Employee', employeeSchema)

@@ -4,58 +4,6 @@ import Employee from "../models/employee.model.js";
 import Customer from "../models/customer.model.js";
 import bcrypt from "bcrypt";
 
-// @desc Get all users
-// @route GET /api/users
-// @access private
-const getAllUsers = async (req, res) => {
-  try {
-    // Fetch users and exclude the password field for security
-    const users = await User.find({}).select("-password").lean();
-    if (!users?.length) {
-      return res
-        .status(400)
-        .json({ success: false, message: "No users found" });
-    }
-    // Return a 200 OK status with the users data
-    return res
-      .status(200)
-      .json({ success: true, count: users.length, data: users });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Server Error: Unable to fetch users",
-      error: error.message,
-    });
-  }
-};
-
-// @desc Get single user
-// @route GET /api/users/:id
-// @access private
-const getUser = async (req, res) => {
-  const { id } = req.params;
-
-  try {
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid user Id" });
-    }
-    const user = await User.findById(id);
-    if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "user not found" });
-    }
-    res.status(200).json({ success: true, data: user });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Server Error: Unable to fetch user",
-      error: error.message,
-    });
-  }
-};
 
 // @desc Create new user account
 // @route POST /api/users
@@ -144,6 +92,61 @@ const CreateNewUser = async (req, res) => {
     });
   }
 };
+
+// @desc Get all users
+// @route GET /api/users
+// @access private
+const getAllUsers = async (req, res) => {
+  try {
+    // Fetch users and exclude the password field for security
+    const users = await User.find({}).select("-password").lean();
+    if (!users?.length) {
+      return res
+        .status(400)
+        .json({ success: false, message: "No users found" });
+    }
+    // Return a 200 OK status with the users data
+    return res
+      .status(200)
+      .json({ success: true, count: users.length, data: users });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Server Error: Unable to fetch users",
+      error: error.message,
+    });
+  }
+};
+
+// @desc Get single user
+// @route GET /api/users/:id
+// @access private
+const getUser = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid user Id" });
+    }
+    const user = await User.findById(id);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "user not found" });
+    }
+    res.status(200).json({ success: true, data: user });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Server Error: Unable to fetch user",
+      error: error.message,
+    });
+  }
+};
+
+
 
 // @desc Updates an existing user account (All or Partial fields)
 // @route PATCH /api/users/:id

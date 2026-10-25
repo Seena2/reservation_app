@@ -16,46 +16,46 @@ import connectToDB from "./config/db.js";
 import dns from "node:dns/promises";
 dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
-console.log(process.env.NODE_ENV);
+console.log(`Current Environment: ${process.env.NODE_ENV}`);
 // connect to the DB
 connectToDB();
 
 // Initialize express app
 const app = express();
 const PORT = process.env.PORT || 5050;
-const MONGODB_URI = process.env.ATLAS_URI;
+const __dirname = import.meta.dirname;
 
 // MIDDLEWARES
-app.use(express.json()); //parse json data
-// specify the static files directory by listening request on root ('/')
-const __dirname = import.meta.dirname;
-app.use("/", express.static(path.join(__dirname, "public")));
-// or shortcut to specify static folder, whith out explictly resolving path
-app.use(express.static("public"));
-// custom middleware
 app.use(logger);
-app.use(errorHandler);
-// Third party middlewares
-app.use(cookieParser());
 app.use(cors(corsOptions));
+app.use(express.json()); // Essential for parsing PATCH/PUT request bodies
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
+// specify static files directory
+app.use("/", express.static(path.join(__dirname, "public")));
+
+console.log("before home route");
 // ROUTES: API ENDPOINTS
+
 app.use("/api/", rootRoute);
 app.use("/api/users", userRoutes);
 app.use("/api/employees", employeeRoutes);
+console.log("after home route");
 
-// catch all 404, page
-app.all('/*splat', (req,res)=>{
-    res.status(404);
-    if(req.accepts('html')){
-        res.sendFile(path.join(__dirname,'views', '404.html'));
-    }else if(req.accepts('json')){
-        res.json({message:'404, Not Found'});
-    }else{
-        res.type('txt').send('404, Not Found');
-    }
-})
-// custom middleware
+// CATCH ALL 404 WILDCARD (Runs only if no route above matches)
+app.all("*any", (req, res) => {
+  res.status(404);
+  if (req.accepts("html")) {
+    res.sendFile(path.join(__dirname, "views", "404.html"));
+  } else if (req.accepts("json")) {
+    res.json({ message: "404, Not Found" });
+  } else {
+    res.type("txt").send("404, Not Found");
+  }
+});
+
+
 app.use( errorHandler);
 
 
