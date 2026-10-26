@@ -1,7 +1,7 @@
 import BaseJoi from 'joi';
 import { JoiDate } from '@joi/date'; 
 
-import { validateDOB } from './dateValidator.js';
+// import { validateDOB } from './dateValidator.js';
 // import { body, validationResult } from "express-validator";
 
 // Extend Joi with the date plugin

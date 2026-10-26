@@ -81,6 +81,7 @@ const CreateNewEmployee = async (req, res) => {
     // Commit changes  and properly close  the session
     await session.commitTransaction();
     session.endSession();
+
     if (!savedEmployee) {
       return res.status(400).json({
         success: false,
@@ -106,7 +107,7 @@ const CreateNewEmployee = async (req, res) => {
     }
     return res.status(201).json({
       success: true,
-      message: `Employee  ${firstName} ${lastName} profile created successfully`,
+      message: `Employee  ${populatedEmployee.firstName} ${populatedEmployee.lastName} profile created successfully`,
       data: populatedEmployee,
     });
   } catch (error) {
@@ -137,8 +138,7 @@ const getAllEmployees = async (req, res) => {
     if (status) filter.status = status;
 
     // Fetch employees and exclude the password field for security
-    const employees = await Employee.find(filter)
-      .select("-password")
+    const employees = await Employee.find(filter).select("-password")
       .populate("userId", "email username") // Adjust fields based on your User schema
       .populate("manager", "firstName lastName email")
       .limit(limit * 1)
@@ -170,7 +170,7 @@ const getEmployee = async (req, res) => {
 
   try {
     // use .populate() to fetch the related User data and the Manager data in one go:
-    const employee = await Employee.findById(id)
+    const employee = await Employee.findById(id).select("-password")
       .populate("userId") // Pull details from User collection
       .populate({
         path: "manager",
@@ -183,7 +183,6 @@ const getEmployee = async (req, res) => {
     }
     res.status(200).json({ success: true, data: employee });
   } catch (error) {
-    console.log(error);
     return res.status(500).json({
       success: false,
       message: "Server Error: Unable to fetch employee",

@@ -1,10 +1,9 @@
 import mongoose from "mongoose";
 import User from "../models/user.model.js";
 import Customer from "../models/customer.model.js";
-import { validateCustomerData } from "../validators/customerValidator.js";//custom utilitty function
+import { createCustomerSchema, updateCustomerSchema,} from "../validators/customer.validator.js";
 
-
-
+// Note validation is done in the route using middleware
 
 // @desc Create new customer profile
 // @route POST /api/customers
@@ -13,64 +12,48 @@ const createNewCustomer = async (req, res) => {
   //  open mongodb session
   const session = await mongoose.startSession();
   session.startTransaction();
-  const {
-    userId,
-    firstName,
-    middleName,
-    lastName,
-    dateOfBirth,
-    email,
-    phone,
-    address,
-    status,
-  } = req.body;
+  const customerData = req.body;
 
-  // Validate data
-  // Pass the entire request body to the orchestrator utility for validation
-  const { isValid, errors } = validateCustomerData(req.body);
-  if (!isValid) {
-    await session.abortTransaction();
-    session.endSession();
-    // Return all validation error messages cleanly mapped to their fields
-    return res.status(400).json({ message: "Validation failed.", errors });
-  }
 
   try {
-    // Find the referenced user to fetch their email and set it to customer email
-    const user = await User.findById(userId);
+    //  check if user account exists
+    const user = await User.findById(customerData.userId).session(session);
     if (!user) {
-      return res.status(404).json({ message: "Referenced user not found." });
+       await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ success: false, message: "Referenced user account not found. please create user account first" });
     }
-    //  Check if an employee with this email or userId already exists
+    // Check if an employee with this  userId or user email already exists
     const existingCustomer = await Customer.findOne({
-      $or: [{ userId: userId }, { email: user.email }],
+      $or: [{ userId: customerData.userId }, { email: user.email }],
     }).session(session);
      
     if (existingCustomer) {
       await session.abortTransaction();
       session.endSession();
       return res.status(409).json({
-        message: "An customer profile already exists for this user account",
+        message: "Customer profile already exists for this user account",
       });
     }
 
     // Create a new customer instance
     const newCustomer = new Customer({
-      ...req.body,
+      ...customerData,
       email: user.email,
     });
     // Save with the active database session and properly close  the session
     const savedCustomer = await newCustomer.save({ session });  
+     // Commit and finalize transaction 
+    await session.commitTransaction();
+    session.endSession();
+
     if (!savedCustomer) {
       return res.status(400).json({
         success: false,
         message: "Failed to creating customer profile.",
       });
     }
-     // Commit and finalize transaction 
-    await session.commitTransaction();
-    session.endSession();
-
+    
     // Populate and return response (done outside the transaction since save is finalized)
     //  fetches user data from refernced user table, 
     const populatedCustomer = await savedCustomer.populate({path: "userId", select: "username email roles status"});
@@ -83,7 +66,7 @@ const createNewCustomer = async (req, res) => {
     }
     return res.status(201).json({
       success: true,
-      message: `Customer  ${firstName} ${lastName} created successfully`,
+      message: `Customer  ${populatedCustomer.firstName} ${populatedCustomer.lastName} created successfully`,
       data: populatedCustomer,
     });
   } catch (error) {
@@ -98,16 +81,25 @@ const createNewCustomer = async (req, res) => {
       message: "Server error while creating Customer profile.",
       error: error.message,
     });
+  } finally {
+    session.endSession();
   }
 };
 
-// @desc Get all customers
+// @desc Get all customers (With Pagination & Filters)
 // @route GET /api/customers
 // @access private
 const getAllCustomers = async (req, res) => {
   try {
+    const { page = 1, limit = 10, department, status } = req.query;
+    const filter = {};
+    if (status) filter.status = status;
     // Fetch all customers and exclude the password field for security
-    const customers = await Customer.find({}).select("-password").lean();
+    const customers = await Customer.find(filter).select("-password")
+    .populate("userId", "email username") // Adjust fields based on your User schema
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .lean(); // Optimized for read-only performance
     if (!customers?.length) {
       return res
         .status(400)
@@ -133,8 +125,8 @@ const getCustomer = async (req, res) => {
   const { id } = req.params;
 
   try {
-    // use .populate() to fetch the related User data and the Manager data in one go:
-    const customer = await Customer.findById(id)
+    // use .populate() to fetch the related User data for a customer
+    const customer = await Customer.findById(id).select("-password")
       .populate("userId", "username email roles status"); // Pull details from User collection
       
     if (!customer) {
@@ -144,7 +136,7 @@ const getCustomer = async (req, res) => {
     }
     res.status(200).json({ success: true, data: customer });
   } catch (error) {
-    console.log(error);
+
     return res.status(500).json({
       success: false,
       message: "Server Error: Unable to fetch customer",
@@ -158,37 +150,14 @@ const getCustomer = async (req, res) => {
 // @access private
 const updateCustomer = async (req, res) => {
   const { id } = req.params;
-  const {
-     userId,
-    firstName,
-    middleName,
-    lastName,
-    dateOfBirth,
-    email,
-    phone,
-    address,
-    status,
-  } = req.body;
+  const updateData = req.body;
 
-  // validate ID format
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(400).json({ success: false, message: "Invalid user Id" });
-  }
-
-  //Validate incoming request body schema rules using our custom utility/helper function
-  const { isValid, errors } = validateCustomerData(req.body);
-  if (!isValid) {
-    // Return all validation error messages cleanly mapped to their fields
-    return res
-      .status(400)
-      .json({ success: false, message: "Validation failed.", errors });
-  }
   //  start mongo session that allow us to perform multiple transaction on d/t collection at same time
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    // Find the referenced user in "User" to get the user email and  reuse it in customer collection
-    const user = await User.findById(userId).session(session);
+    // Check if the user account exists in "User" collection
+    const user = await User.findById(updateData.userId).session(session);
     if (!user) {
       await session.abortTransaction();
       session.endSession();
@@ -197,7 +166,7 @@ const updateCustomer = async (req, res) => {
         message: "Referenced user account not found.",
       });
     }
-    // Find the Employee document
+    // Find the customer document
     const existingCustomer = await Customer.findById(id).session(session);
     if (!existingCustomer) {
       await session.abortTransaction();
@@ -208,7 +177,7 @@ const updateCustomer = async (req, res) => {
     }
     //  Uniqueness Verification (Ensure email/userId pair belongs to this specific employee record)
     const duplicateCustomer = await Customer.findOne({
-      _id: { $ne: id }, // Exclude current employee
+      _id: { $ne: id }, // Exclude current customer
       $or: [{ user: userId }, { email: user.email }],
     }).session(session);
 
@@ -223,26 +192,23 @@ const updateCustomer = async (req, res) => {
     }
 
     //  Sync details and inherit email safely from verified User document
-    existingCustomer.userId = userId || existingCustomer.userId;
+    existingCustomer.userId = updateData.userId || existingCustomer.userId;
     existingCustomer.email = user.email; // Maintain the operational sync tie explicitly
 
-    existingCustomer.firstName =
-      firstName !== undefined ? firstName : existingCustomer.firstName;
-    existingCustomer.middleName =
-      middleName !== undefined ? middleName : existingCustomer.middleName;
-    existingCustomer.lastName =
-      lastName !== undefined ? lastName : existingCustomer.lastName;
-    existingCustomer.dateOfBirth =
-      dateOfBirth !== undefined ? dateOfBirth : existingCustomer.dateOfBirth;
-    existingCustomer.phone =
-      phone !== undefined ? phone : existingCustomer.phone;
-    existingCustomer.address =
-      address !== undefined ? address : existingCustomer.address;
-    existingCustomer.status =
-      status !== undefined ? status : existingCustomer.status;
+    existingCustomer.firstName =updateData.firstName !== undefined ? updateData.firstName : existingCustomer.firstName;
+    existingCustomer.middleName =updateData. middleName !== undefined ?updateData.middleName : existingCustomer.middleName;
+    existingCustomer.lastName =updateData.lastName !== undefined ? updateData.lastName : existingCustomer.lastName;
+    existingCustomer.dateOfBirth =updateData.dateOfBirth !== undefined ? updateData.dateOfBirth : existingCustomer.dateOfBirth;
+    existingCustomer.phone =updateData.phone !== undefined ? updateData.phone : existingCustomer.phone;
+    existingCustomer.address =updateData.address !== undefined ? updateData.address : existingCustomer.address;
+    existingCustomer.status =updateData.status !== undefined ?updateData. status : existingCustomer.status;
 
     // Commit operations safely to database
     const savedCustomer = await existingCustomer.save({ session });
+    // Commit operations safely to database
+    await session.commitTransaction();
+    session.endSession();
+
     if (!savedCustomer) {
       return res
         .status(400)
@@ -254,9 +220,7 @@ const updateCustomer = async (req, res) => {
       { path: "userId", select: "firstName lastName email roles status" },
     ]);
 
-    // Commit operations safely to database
-    await session.commitTransaction();
-    session.endSession();
+    
 
     return res.status(200).json({
       success: true,
@@ -277,22 +241,18 @@ const updateCustomer = async (req, res) => {
   }
 };
 
-// @desc Delete employee : Safely remove an employee profile and realign direct reports(subordinates)
-// @route DELETE /api/employees/:id
+// @desc Delete customer 
+// @route DELETE /api/customers/:id
 // @access private
 const deleteCustomer = async (req, res) => {
   const { id } = req.params;
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Invalid employee Id" });
-  }
+ 
   // Open the multi-document session transaction safely
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    // Verify the employee profile to be deleted exists
-    const customerToDelete =Customer.findById(id).session(session);
+    // Verify the customer profile to be deleted exists
+    const customerToDelete = await Customer.findById(id).session(session);
     if (!customerToDelete) {
       await session.abortTransaction();
       session.endSession();
@@ -305,6 +265,7 @@ const deleteCustomer = async (req, res) => {
     const deletedCustomer = await Customer.findByIdAndDelete(id).session(session);
     await session.commitTransaction();
     session.endSession();
+    
      if (!deletedCustomer) {
       await session.abortTransaction();
       session.endSession();
