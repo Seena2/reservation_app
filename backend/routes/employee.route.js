@@ -7,14 +7,30 @@ import {
   deleteEmployee,
 } from "../controllers/employee.controller.js";
 
+import {
+  validateBody,
+  validateParams,
+} from "../middlewares/validator.middleware.js";
+import {
+  createEmployeeSchema,
+  updateEmployeeSchema,
+  mongoIdSchema,
+} from "../validators/employee.validator.js";
+
 //Create route instance
 const router = express.Router();
 
-// invoke http methods on the router object that use "/api/users" as base URL
-router.post("/", CreateNewEmployee);
+// Pass your validateBody middleware function directly into the route handlers before calling the controller actions.
+// Note, validateBody or validateParams middlewares intercept the request and validate the data using validation schema
+router.post("/", validateBody(createEmployeeSchema), CreateNewEmployee);
 router.get("/", getAllEmployees);
-router.get("/:id", getEmployee);
-router.patch("/:id", updateEmployee);
-router.delete("/:id", deleteEmployee);
+// Protect routes that use MongoDB :id matching (validate id before processing req)
+router.get("/:id", validateParams(mongoIdSchema), getEmployee);
+router.patch(
+  "/:id",
+  [validateParams(mongoIdSchema), validateBody(updateEmployeeSchema)],
+  updateEmployee,
+);
+router.delete("/:id", validateParams(mongoIdSchema), deleteEmployee);
 
 export default router

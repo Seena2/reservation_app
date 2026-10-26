@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import User from "../models/user.model.js";
 import Inventory from "../models/inventory.model.js";
-import { validateCustomerData } from "../utils/customerValidator.js";//custom utilitty function
+import { validateCustomerData } from "../validators/customerValidator.js";//custom utilitty function
 
 
 

@@ -1,21 +1,23 @@
 import mongoose from "mongoose";
 import Counter from "./counter.model.js";
 
+
 // This file defines the Employee schema and uses a Mongoose "pre-save" hook to automatically increment and
 //  format the sequential ID before saving a new employee.
 const employeeSchema = new mongoose.Schema({
-    // Friendly sequential ID (e.g., EMP-0001)
-    employeeId: {
-      type: String,
-      unique: true,
-      index: true // Fast lookup for all orders by a specific user
-    },
     // References the separate User collection
     userId:{
         type:mongoose.Schema.Types.ObjectId, 
         required: [true,"Employee must be linked to a User accounts."],
         ref:'User', //refers user schema
-        unique: true,  
+        unique: true,  // Prevents duplicate profiles for the same user
+        index: true
+    },
+     // Friendly sequential ID (e.g., EMP-0001)
+    employeeId: {
+      type: String,
+      unique: true,
+      index: true // Fast lookup 
     },
     firstName: {
         type: String,
@@ -25,9 +27,8 @@ const employeeSchema = new mongoose.Schema({
      },
     middleName: {
         type: String,
-        required: [true, 'Middle name is required'],
         trim: true,
-        maxlength: [50, 'First name cannot exceed 50 characters']
+        maxlength: [50, 'Middle name cannot exceed 50 characters']
     },
     lastName: {
         type: String,
@@ -45,46 +46,55 @@ const employeeSchema = new mongoose.Schema({
     unique: true,
     lowercase: true,
     trim: true,
-    match: [/^\S+@\S+\.\S+$/, 'Please use a valid email address']
+    match: [/^\S+@\S+\.\S+$/, 'Please use a valid email address'],
+    index:true
   },
-  phone: [{
+  phone: {
     type: String,
-    trim: true
-  }],
+    trim: true,
+    required:[true, "Please provide phone number"]
+  },
    address: {
-    street: String,
-    city: String,
-    country: String,
-    zipCode: String
+    type:{
+       country: {type:String, required: true},
+       state: {type:String, required: true},
+       city: {type:String, required: true},
+       street: {type:String},
+       zipCode: {type:String}
+    }
   },
   department: {
     type: String,
     required: true,
-    enum: ['IT', 'Human Resources', 'Sales', 'Marketing', 'Finance']
+    trim: true,
+    index:true,
+    enum: ['it', 'human resources', 'sales', 'marketing', 'finance'],
   },
   position: {
     type: String,
-    required: true
+    required: true,
+    trim:true
   },
   salary: {
     type: Number,
     required: true,
     min: [0, 'Salary cannot be negative']
   },
-  dateOfHired: {
+  dateHired: {
     type: Date,
     default: Date.now
   },
   status: {
     type: String,
-      enum: ['Active', 'On Leave', 'Terminated'],
-      default: 'Active',
+      enum: ['active', 'inactive', 'on Leave','suspended', 'terminated'],
+      default: 'active',
   },
     // Self-referencing field to link an Employee to their Manager (who is also an Employee)
     manager: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Employee',
       default: null,
+      index:true,
     },
 },{
     timestamps: true //CreatedAt & UpdatedAt

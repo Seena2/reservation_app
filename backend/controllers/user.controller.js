@@ -114,11 +114,17 @@ const updateUser = async (req, res) => {
         .status(400)
         .json({ success: false, message: "User not found" });
     }
+    //  Prevent accidental password modification if it's sent empty/invalid in body
+    if (req.body.password === undefined || req.body.password === "") {
+      delete req.body.password;
+    }
+
     // Dynamically assign incoming validated fields to the Mongoose document
     // Because 'stripUnknown: true' is in our Joi middleware, req.body is guaranteed clean
     Object.assign(user, req.body);
+
     // CRITICAL: Explicitly tell Mongoose that the array was modified
-    if (roles) {
+    if (req.body.roles) {
       user.markModified("roles");
     }
     //  Save the document (triggers pre-save validation/hooks)
@@ -135,7 +141,7 @@ const updateUser = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `User ${username} updated successfully.`,
+      message: `User ${userResponse.username || "profile"} updated successfully.`,
       data: userResponse,
     });
   } catch (error) {
